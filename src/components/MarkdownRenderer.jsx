@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -68,9 +69,11 @@ const InteractiveCodeBlock = ({ code, language }) => {
     }, 100);
 
     try {
-      // 实时输出回调
+      // 实时输出回调 - 使用 flushSync 强制立即更新 DOM
       const onOutput = (text) => {
-        setOutput(prev => prev + text);
+        flushSync(() => {
+          setOutput(prev => prev + text);
+        });
       };
 
       const result = await runPython(editCode, onOutput);
