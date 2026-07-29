@@ -62,18 +62,25 @@ const InteractiveCodeBlock = ({ code, language }) => {
       const elapsed = Date.now() - startTime;
       setExecutionTime(elapsed);
       
-      // 显示超时警告
       if (elapsed > 5000) {
         setShowTimeoutWarning(true);
       }
     }, 100);
 
     try {
-      const result = await runPython(editCode);
+      // 实时输出回调
+      const onOutput = (text) => {
+        setOutput(prev => prev + text);
+      };
+
+      const result = await runPython(editCode, onOutput);
       
-      if (result.success) {
-        setOutput(result.output || '代码执行完成（无输出）');
-      } else {
+      // 如果有一次性输出（非实时模式），设置输出
+      if (result.output && !output) {
+        setOutput(result.output);
+      }
+      
+      if (!result.success && result.error) {
         setOutput(result.error);
       }
     } catch (error) {

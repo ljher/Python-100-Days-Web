@@ -21,7 +21,6 @@ async function loadMainPyodide() {
   
   try {
     if (!window.loadPyodide) {
-      // 动态加载 Pyodide 脚本
       await new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js';
@@ -44,8 +43,27 @@ async function loadMainPyodide() {
   }
 }
 
-// 在主线程运行代码（支持 input）
-async function runOnMainThread(code) {
+// 预处理代码：将 input() 替换为 await input()
+function preprocessCode(code) {
+  // 将 input(...) 替换为 await input(...)
+  // 但要避免替换字符串中的 input
+  let processed = code;
+  
+  // 替换所有 input() 调用为 await input()
+  // 使用正则匹配不在字符串中的 input(
+  processed = processed.replace(/\binput\s*\(/g, 'await input(');
+  
+  // 包装成异步函数
+  return `
+async def __main__():
+    __code__ = """${processed.replace(/\\/g, '\\\\').replace(/"""/g, '\\"\\"\\"')}"""
+    exec(compile(__code__, '<input>', 'exec'), globals())
+await __main__()
+`;
+}
+
+// 在主线程运行代码（支持 input 和实时输出）
+async function runOnMainThread(code, onOutput) {
   if (!mainPyodideReady) {
     await loadMainPyodide();
   }
@@ -55,18 +73,44 @@ async function runOnMainThread(code) {
   }
 
   try {
-    // 重定向 stdout
+    // 创建自定义 stdout，支持实时输出
     mainPyodide.runPython(`
 import sys
-from io import StringIO
-sys.stdout = StringIO()
+import js
+
+class RealtimeStdout:
+    def __init__(self):
+        self.buffer = ''
+    
+    def write(self, text):
+        if text:
+            self.buffer += text
+            # 调用 JavaScript 回调
+            js.__onPythonOutput__(text)
+    
+    def flush(self):
+        pass
+
+sys.stdout = RealtimeStdout()
 `);
 
-    // 设置 input 函数（主线程可以使用 window.prompt）
+    // 设置全局输出回调
+    window.__onPythonOutput__ = (text) => {
+      if (onOutput) {
+        onOutput(text);
+      }
+    };
+
+    // 设置 input 函数（异步版本，支持实时输出）
     mainPyodide.runPython(`
 import js
-def custom_input(prompt=''):
+import asyncio
+
+async def custom_input(prompt=''):
     prompt_str = str(prompt) if prompt else ''
+    # 使用 await 让出控制权，允许 UI 更新
+    await asyncio.sleep(0)
+    # 使用 JavaScript 的 prompt
     result = js.prompt(prompt_str)
     if result is None:
         raise EOFError('用户取消输入')
@@ -76,18 +120,22 @@ import builtins
 builtins.input = custom_input
 `);
 
-    // 运行代码
-    const result = mainPyodide.runPython(code);
-
-    // 获取输出
-    const stdout = mainPyodide.runPython('sys.stdout.getvalue()');
+    // 预处理代码并运行
+    const processedCode = preprocessCode(code);
+    await mainPyodide.runPythonAsync(processedCode);
+    
+    // 获取缓冲区中的输出
+    const bufferOutput = mainPyodide.runPython('sys.stdout.buffer');
     
     // 恢复 stdout
     mainPyodide.runPython('sys.stdout = sys.__stdout__');
+    
+    // 清理回调
+    delete window.__onPythonOutput__;
 
     return {
       success: true,
-      output: stdout || (result !== undefined ? String(result) : ''),
+      output: bufferOutput || '',
       error: null
     };
   } catch (error) {
@@ -96,6 +144,8 @@ builtins.input = custom_input
     } catch (e) {
       // 忽略
     }
+    
+    delete window.__onPythonOutput__;
     
     return {
       success: false,
@@ -143,7 +193,6 @@ export const PyodideProvider = ({ children }) => {
 
   useEffect(() => {
     createWorker();
-    // 同时预加载主线程 Pyodide
     loadMainPyodide();
     
     return () => {
@@ -154,13 +203,13 @@ export const PyodideProvider = ({ children }) => {
   }, [createWorker]);
 
   // 运行 Python 代码
-  const runPython = useCallback(async (code) => {
-    // 检测代码是否包含 input()
+  // onOutput: 实时输出回调函数
+  const runPython = useCallback(async (code, onOutput) => {
     const hasInput = /\binput\s*\(/.test(code);
     
     if (hasInput) {
-      // 包含 input()，在主线程运行
-      return await runOnMainThread(code);
+      // 包含 input()，在主线程运行（支持实时输出）
+      return await runOnMainThread(code, onOutput);
     } else {
       // 不含 input()，在 Worker 中运行
       if (!workerRef.current) {
