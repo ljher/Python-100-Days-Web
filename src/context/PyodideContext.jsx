@@ -30,7 +30,7 @@ export const PyodideProvider = ({ children }) => {
     workerRef.current = worker;
 
     worker.onmessage = (e) => {
-      const { type, success, output: workerOutput, error: workerError } = e.data;
+      const { type, success, output: workerOutput, error: workerError, prompt } = e.data;
 
       if (type === 'ready') {
         setIsLoading(false);
@@ -41,6 +41,14 @@ export const PyodideProvider = ({ children }) => {
           pendingResolveRef.current({ success, output: workerOutput, error: workerError });
           pendingResolveRef.current = null;
         }
+      } else if (type === 'input_request') {
+        // Worker 请求用户输入
+        const userInput = window.prompt(prompt || '请输入：');
+        // 将用户输入发送回 Worker
+        worker.postMessage({ 
+          type: 'input_response', 
+          inputValue: userInput !== null ? userInput : '' 
+        });
       }
     };
 
