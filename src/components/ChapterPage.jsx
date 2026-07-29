@@ -13,16 +13,26 @@ const ChapterPage = () => {
 
   // 使用 useLayoutEffect 确保在 DOM 更新后立即滚动到顶部
   useLayoutEffect(() => {
-    // 立即滚动到顶部
+    // 滚动到页面顶部
     window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
+    
+    // 滚动父容器到顶部（针对 Layout 组件中的滚动容器）
+    const scrollContainer = document.querySelector('[style*="overflow: auto"]') || 
+                           document.querySelector('[style*="overflow:auto"]');
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 0;
+    }
     
     // 使用 requestAnimationFrame 确保在下一帧也滚动到顶部
     requestAnimationFrame(() => {
       window.scrollTo(0, 0);
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
+      if (scrollContainer) {
+        scrollContainer.scrollTop = 0;
+      }
     });
     
     // 延迟执行，确保在所有内容加载完成后滚动
@@ -30,6 +40,9 @@ const ChapterPage = () => {
       window.scrollTo(0, 0);
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
+      if (scrollContainer) {
+        scrollContainer.scrollTop = 0;
+      }
     }, 100);
     
     return () => clearTimeout(timer);

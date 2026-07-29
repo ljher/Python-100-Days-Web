@@ -36,7 +36,7 @@ const extractTextFromChildren = (children) => {
 
 // 可交互的代码块组件
 const InteractiveCodeBlock = ({ code, language }) => {
-  const { isLoading: pyodideLoading, error: pyodideError, runPython, loadPyodide } = usePyodide();
+  const { isLoading: pyodideLoading, error: pyodideError, runPython, stopPython, loadPyodide } = usePyodide();
   const [isEditing, setIsEditing] = useState(false);
   const [editCode, setEditCode] = useState(code);
   const [output, setOutput] = useState('');
@@ -44,15 +44,33 @@ const InteractiveCodeBlock = ({ code, language }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isModified, setIsModified] = useState(false);
+  const [executionTime, setExecutionTime] = useState(0);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const textareaRef = useRef(null);
+  const timerRef = useRef(null);
 
   // 运行代码
   const handleRun = async () => {
     setIsRunning(true);
     setOutput('');
+    setExecutionTime(0);
+    setShowTimeoutWarning(false);
+    
+    // 启动计时器
+    const startTime = Date.now();
+    timerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      setExecutionTime(elapsed);
+      
+      // 显示超时警告
+      if (elapsed > 5000) {
+        setShowTimeoutWarning(true);
+      }
+    }, 100);
 
     try {
-      const result = await runPython(editCode);
+      // 设置超时时间为10秒
+      const result = await runPython(editCode, 10000);
       
       if (result.success) {
         setOutput(result.output || '代码执行完成（无输出）');
@@ -63,7 +81,20 @@ const InteractiveCodeBlock = ({ code, language }) => {
       setOutput(`错误: ${error.message}`);
     } finally {
       setIsRunning(false);
+      clearInterval(timerRef.current);
+      setShowTimeoutWarning(false);
     }
+  };
+
+  // 停止运行
+  const handleStop = () => {
+    if (stopPython) {
+      stopPython();
+    }
+    setIsRunning(false);
+    clearInterval(timerRef.current);
+    setShowTimeoutWarning(false);
+    setOutput(prev => prev + '\n\n[用户停止执行]');
   };
 
   // 复制代码
@@ -231,6 +262,23 @@ const InteractiveCodeBlock = ({ code, language }) => {
               >
                 {isRunning ? '运行中...' : pyodideLoading ? '加载中...' : '运行'}
               </button>
+              {isRunning && (
+                <button
+                  onClick={handleStop}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    backgroundColor: '#d73a49',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                  title="停止运行"
+                >
+                  停止
+                </button>
+              )}
             </>
           )}
         </div>
@@ -323,6 +371,36 @@ const InteractiveCodeBlock = ({ code, language }) => {
         </pre>
       )}
 
+      {/* 超时警告 */}
+      {showTimeoutWarning && (
+        <div style={{
+          padding: '8px 12px',
+          backgroundColor: '#fff3cd',
+          color: '#856404',
+          fontSize: '12px',
+          borderBottom: '1px solid #ffeaa7',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <span>⚠️ 代码执行时间较长，可能存在无限循环</span>
+          <button
+            onClick={handleStop}
+            style={{
+              padding: '2px 8px',
+              fontSize: '11px',
+              backgroundColor: '#d73a49',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '3px',
+              cursor: 'pointer'
+            }}
+          >
+            停止
+          </button>
+        </div>
+      )}
+
       {/* 输出区域 */}
       {language === 'python' && output && (
         <div style={{
@@ -331,12 +409,26 @@ const InteractiveCodeBlock = ({ code, language }) => {
           backgroundColor: '#fff'
         }}>
           <div style={{
-            fontSize: '12px',
-            color: '#586069',
-            marginBottom: '4px',
-            fontWeight: '500'
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '4px'
           }}>
-            输出:
+            <span style={{
+              fontSize: '12px',
+              color: '#586069',
+              fontWeight: '500'
+            }}>
+              输出:
+            </span>
+            {executionTime > 0 && (
+              <span style={{
+                fontSize: '11px',
+                color: '#586069'
+              }}>
+                执行时间: {(executionTime / 1000).toFixed(1)}秒
+              </span>
+            )}
           </div>
           <pre style={{
             margin: 0,

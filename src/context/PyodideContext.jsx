@@ -62,8 +62,24 @@ export const PyodideProvider = ({ children }) => {
     return () => clearTimeout(timer);
   }, [loadPyodideInstance]);
 
+  // 停止正在运行的代码
+  const stopPython = useCallback(() => {
+    if (pyodide) {
+      try {
+        // 尝试中断执行
+        pyodide.runPython(`
+import sys
+sys.stdout = sys.__stdout__
+raise KeyboardInterrupt('用户停止执行')
+`);
+      } catch (e) {
+        // 忽略错误
+      }
+    }
+  }, [pyodide]);
+
   // 运行 Python 代码
-  const runPython = useCallback(async (code) => {
+  const runPython = useCallback(async (code, timeout = 10000) => {
     if (!pyodide) {
       return {
         success: false,
@@ -71,6 +87,21 @@ export const PyodideProvider = ({ children }) => {
         error: 'Python 运行环境正在加载中，请稍候...'
       };
     }
+
+    // 用于存储执行结果
+    let result = null;
+    let error = null;
+    let output = '';
+    let isCompleted = false;
+
+    // 设置超时
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        if (!isCompleted) {
+          reject(new Error(`代码执行超时（${timeout / 1000}秒）。可能存在无限循环。`));
+        }
+      }, timeout);
+    });
 
     try {
       // 重定向 stdout 并设置 input 函数
@@ -98,20 +129,27 @@ builtins.input = custom_input
 `);
 
       // 运行用户代码（使用异步执行以支持 input）
-      const result = await pyodide.runPythonAsync(code);
+      const executionPromise = pyodide.runPythonAsync(code);
+      
+      // 使用 Promise.race 来实现超时
+      result = await Promise.race([executionPromise, timeoutPromise]);
+      isCompleted = true;
 
       // 获取输出
-      const stdout = pyodide.runPython('sys.stdout.getvalue()');
+      output = pyodide.runPython('sys.stdout.getvalue()');
       
       // 恢复 stdout
       pyodide.runPython('sys.stdout = sys.__stdout__');
 
       return {
         success: true,
-        output: stdout || (result !== undefined ? String(result) : ''),
+        output: output || (result !== undefined ? String(result) : ''),
         error: null
       };
-    } catch (error) {
+    } catch (err) {
+      isCompleted = true;
+      error = err;
+      
       // 确保恢复 stdout
       try {
         pyodide.runPython('sys.stdout = sys.__stdout__');
@@ -133,7 +171,8 @@ builtins.input = custom_input
     error,
     loadingProgress,
     loadPyodide: loadPyodideInstance,
-    runPython
+    runPython,
+    stopPython
   };
 
   return (
