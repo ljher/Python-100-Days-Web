@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import MarkdownRenderer from './MarkdownRenderer';
 import { getChapterById, getAllChapters } from '../data/courseData';
@@ -10,6 +10,30 @@ const ChapterPage = () => {
   const [allChapters, setAllChapters] = useState([]);
   const [prevChapter, setPrevChapter] = useState(null);
   const [nextChapter, setNextChapter] = useState(null);
+
+  // 使用 useLayoutEffect 确保在 DOM 更新后立即滚动到顶部
+  useLayoutEffect(() => {
+    // 立即滚动到顶部
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    
+    // 使用 requestAnimationFrame 确保在下一帧也滚动到顶部
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    });
+    
+    // 延迟执行，确保在所有内容加载完成后滚动
+    const timer = setTimeout(() => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [chapterId]);
 
   useEffect(() => {
     const chapterData = getChapterById(chapterId);
@@ -36,9 +60,6 @@ const ChapterPage = () => {
     if (chapterId) {
       updateCurrentChapter(chapterId);
     }
-    
-    // 滚动到顶部
-    window.scrollTo(0, 0);
   }, [chapterId]);
 
   const isCompleted = isChapterCompleted(chapterId);
