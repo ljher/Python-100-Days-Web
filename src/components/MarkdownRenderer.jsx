@@ -43,6 +43,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
   const [isRunning, setIsRunning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isModified, setIsModified] = useState(false);
   const textareaRef = useRef(null);
 
   // 运行代码
@@ -79,6 +80,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
   const handleReset = () => {
     setEditCode(code);
     setOutput('');
+    setIsModified(false);
   };
 
   return (
@@ -135,6 +137,25 @@ const InteractiveCodeBlock = ({ code, language }) => {
               >
                 {isEditing ? '查看' : '编辑'}
               </button>
+              {isEditing && (
+                <button
+                  onClick={handleReset}
+                  disabled={!isModified}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    backgroundColor: isModified ? '#fff' : '#f6f8fa',
+                    color: isModified ? '#d73a49' : '#959da5',
+                    border: `1px solid ${isModified ? '#d73a49' : '#e1e4e8'}`,
+                    borderRadius: '4px',
+                    cursor: isModified ? 'pointer' : 'not-allowed',
+                    opacity: isModified ? 1 : 0.6
+                  }}
+                  title="恢复为原始代码"
+                >
+                  恢复
+                </button>
+              )}
               <button
                 onClick={() => setIsFullscreen(true)}
                 style={{
@@ -178,6 +199,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
             value={editCode}
             onChange={(e) => {
               setEditCode(e.target.value);
+              setIsModified(true);
               // 自动调整高度
               e.target.style.height = 'auto';
               e.target.style.height = Math.max(200, e.target.scrollHeight) + 'px';
@@ -372,7 +394,10 @@ const InteractiveCodeBlock = ({ code, language }) => {
           }}>
             <textarea
               value={editCode}
-              onChange={(e) => setEditCode(e.target.value)}
+              onChange={(e) => {
+                setEditCode(e.target.value);
+                setIsModified(true);
+              }}
               style={{
                 flex: 1,
                 width: '100%',

@@ -73,15 +73,32 @@ export const PyodideProvider = ({ children }) => {
     }
 
     try {
-      // 重定向 stdout
+      // 重定向 stdout 并设置 input 函数
       pyodide.runPython(`
 import sys
 from io import StringIO
 sys.stdout = StringIO()
+
+# 重定义 input 函数，使用 JavaScript 的 prompt
+import js
+def custom_input(prompt=''):
+    # 显示提示信息
+    if prompt:
+        js.console.log(str(prompt))
+    # 使用 JavaScript 的 prompt 获取输入
+    result = js.prompt(str(prompt) if prompt else '')
+    if result is None:
+        # 用户点击取消
+        raise EOFError('用户取消输入')
+    return result
+
+# 替换内置的 input 函数
+import builtins
+builtins.input = custom_input
 `);
 
-      // 运行用户代码
-      const result = pyodide.runPython(code);
+      // 运行用户代码（使用异步执行以支持 input）
+      const result = await pyodide.runPythonAsync(code);
 
       // 获取输出
       const stdout = pyodide.runPython('sys.stdout.getvalue()');
@@ -99,7 +116,7 @@ sys.stdout = StringIO()
       try {
         pyodide.runPython('sys.stdout = sys.__stdout__');
       } catch (e) {
-        // 忽略恢复 stdout 的错误
+        // 忽略恢复的错误
       }
       
       return {
