@@ -83,6 +83,51 @@ const InteractiveCodeBlock = ({ code, language }) => {
     setIsModified(false);
   };
 
+  // 处理键盘事件，支持 Tab 键输入
+  const handleKeyDown = (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const textarea = e.target;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      
+      if (e.shiftKey) {
+        // Shift+Tab: 减少缩进
+        const lineStart = editCode.lastIndexOf('\n', start - 1) + 1;
+        const line = editCode.substring(lineStart, end);
+        
+        if (line.startsWith('\t')) {
+          // 移除行首的制表符
+          const newValue = editCode.substring(0, lineStart) + line.substring(1) + editCode.substring(end);
+          setEditCode(newValue);
+          setIsModified(true);
+          
+          setTimeout(() => {
+            textarea.selectionStart = textarea.selectionEnd = start - 1;
+          }, 0);
+        } else if (line.startsWith('    ')) {
+          // 移除4个空格
+          const newValue = editCode.substring(0, lineStart) + line.substring(4) + editCode.substring(end);
+          setEditCode(newValue);
+          setIsModified(true);
+          
+          setTimeout(() => {
+            textarea.selectionStart = textarea.selectionEnd = start - 4;
+          }, 0);
+        }
+      } else {
+        // Tab: 增加缩进
+        const newValue = editCode.substring(0, start) + '\t' + editCode.substring(end);
+        setEditCode(newValue);
+        setIsModified(true);
+        
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + 1;
+        }, 0);
+      }
+    }
+  };
+
   return (
     <div style={{
       margin: '16px 0',
@@ -204,6 +249,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
               e.target.style.height = 'auto';
               e.target.style.height = Math.max(200, e.target.scrollHeight) + 'px';
             }}
+            onKeyDown={handleKeyDown}
             style={{
               width: '100%',
               minHeight: '200px',
@@ -398,6 +444,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
                 setEditCode(e.target.value);
                 setIsModified(true);
               }}
+              onKeyDown={handleKeyDown}
               style={{
                 flex: 1,
                 width: '100%',
