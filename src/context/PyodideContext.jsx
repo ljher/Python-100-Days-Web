@@ -43,115 +43,74 @@ async function loadMainPyodide() {
   }
 }
 
-// 预处理代码：将 input() 替换为 await input()
-function preprocessCode(code) {
-  // 将 input(...) 替换为 await input(...)
-  // 但要避免替换字符串中的 input
-  let processed = code;
-  
-  // 替换所有 input() 调用为 await input()
-  // 使用正则匹配不在字符串中的 input(
-  processed = processed.replace(/\binput\s*\(/g, 'await input(');
-  
-  // 包装成异步函数
-  return `
-async def __main__():
-    __code__ = """${processed.replace(/\\/g, '\\\\').replace(/"""/g, '\\"\\"\\"')}"""
-    exec(compile(__code__, '<input>', 'exec'), globals())
-await __main__()
-`;
-}
-
 // 在主线程运行代码（支持 input 和实时输出）
-async function runOnMainThread(code, onOutput) {
+function runOnMainThread(code, onOutput) {
   if (!mainPyodideReady) {
-    await loadMainPyodide();
+    return loadMainPyodide().then(() => runOnMainThread(code, onOutput));
   }
   
   if (!mainPyodide) {
-    return { success: false, output: '', error: 'Python 运行环境加载失败' };
+    return Promise.resolve({ success: false, output: '', error: 'Python 运行环境加载失败' });
   }
 
   try {
-    // 创建自定义 stdout，支持实时输出
+    // 注册输出回调到全局
+    window.__onPythonOutput__ = onOutput || (() => {});
+
+    // 设置自定义 stdout 和 input
     mainPyodide.runPython(`
 import sys
 import js
 
 class RealtimeStdout:
-    def __init__(self):
-        self.buffer = ''
-    
     def write(self, text):
         if text:
-            self.buffer += text
-            # 调用 JavaScript 回调
             js.__onPythonOutput__(text)
-    
     def flush(self):
         pass
 
 sys.stdout = RealtimeStdout()
-`);
+sys.stderr = RealtimeStdout()
 
-    // 设置全局输出回调
-    window.__onPythonOutput__ = (text) => {
-      if (onOutput) {
-        onOutput(text);
-      }
-    };
-
-    // 设置 input 函数（异步版本，支持实时输出）
-    mainPyodide.runPython(`
-import js
-import asyncio
-
-async def custom_input(prompt=''):
+import builtins
+def custom_input(prompt=''):
     prompt_str = str(prompt) if prompt else ''
-    # 使用 await 让出控制权，允许 UI 更新
-    await asyncio.sleep(0)
-    # 使用 JavaScript 的 prompt
     result = js.prompt(prompt_str)
     if result is None:
         raise EOFError('用户取消输入')
     return result
 
-import builtins
 builtins.input = custom_input
 `);
 
-    // 预处理代码并运行
-    const processedCode = preprocessCode(code);
-    await mainPyodide.runPythonAsync(processedCode);
-    
-    // 获取缓冲区中的输出
-    const bufferOutput = mainPyodide.runPython('sys.stdout.buffer');
-    
+    // 运行代码
+    const result = mainPyodide.runPython(code);
+
     // 恢复 stdout
-    mainPyodide.runPython('sys.stdout = sys.__stdout__');
+    mainPyodide.runPython('sys.stdout = sys.__stdout__; sys.stderr = sys.__stderr__');
     
     // 清理回调
     delete window.__onPythonOutput__;
 
-    return {
+    return Promise.resolve({
       success: true,
-      output: bufferOutput || '',
+      output: '',
       error: null
-    };
+    });
   } catch (error) {
     try {
-      mainPyodide.runPython('sys.stdout = sys.__stdout__');
+      mainPyodide.runPython('sys.stdout = sys.__stdout__; sys.stderr = sys.__stderr__');
     } catch (e) {
       // 忽略
     }
     
     delete window.__onPythonOutput__;
     
-    return {
+    return Promise.resolve({
       success: false,
       output: '',
       error: error.message
-    };
+    });
   }
 }
 
@@ -203,7 +162,6 @@ export const PyodideProvider = ({ children }) => {
   }, [createWorker]);
 
   // 运行 Python 代码
-  // onOutput: 实时输出回调函数
   const runPython = useCallback(async (code, onOutput) => {
     const hasInput = /\binput\s*\(/.test(code);
     
