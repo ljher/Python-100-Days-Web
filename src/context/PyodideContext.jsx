@@ -13,8 +13,9 @@ export const usePyodide = () => {
 // 加载主线程 Pyodide
 let mainPyodide = null;
 let mainPyodideLoading = false;
-let mainPyodideReady = false;
-let inputResolveRef = null; // 用于等待用户输入
+let mainPyodideReady = null;
+let inputResolveRef = null;
+let currentBlockIdRef = null; // 当前请求输入的代码块 ID
 
 async function loadMainPyodide() {
   if (mainPyodideReady || mainPyodideLoading) return;
@@ -44,37 +45,28 @@ async function loadMainPyodide() {
   }
 }
 
-// 预处理代码：将 input() 替换为 await __async_input__()
+// 预处理代码
 function preprocessCode(code) {
   const lines = code.split('\n');
   const processedLines = lines.map(line => {
-    // 替换 input(...) 为 await __async_input__(...)
-    // 但要避免替换字符串中的 input
     return line.replace(/\binput\s*\(/g, 'await __async_input__(');
   });
-  
-  // 将所有行缩进4个空格
   const indentedCode = processedLines.map(line => '    ' + line).join('\n');
-  
-  // 包装成异步函数
-  return `
-${indentedCode}
-`;
+  return `\n${indentedCode}\n`;
 }
 
-// 等待用户输入（从 React UI）
+// 等待用户输入
 function waitForInput(promptText) {
   return new Promise((resolve) => {
     inputResolveRef = resolve;
-    // 通知 React 显示输入框
     if (window.__showInput__) {
-      window.__showInput__(promptText);
+      window.__showInput__(promptText, currentBlockIdRef);
     }
   });
 }
 
-// 在主线程运行代码（支持异步 input 和实时输出）
-async function runOnMainThread(code, onOutput, onInputRequest, onInputComplete) {
+// 在主线程运行代码
+async function runOnMainThread(code, onOutput, onInputRequest, blockId) {
   if (!mainPyodideReady) {
     await loadMainPyodide();
   }
@@ -83,12 +75,12 @@ async function runOnMainThread(code, onOutput, onInputRequest, onInputComplete) 
     return { success: false, output: '', error: 'Python 运行环境加载失败' };
   }
 
+  currentBlockIdRef = blockId;
+
   try {
-    // 注册回调到全局
     window.__onPythonOutput__ = onOutput || (() => {});
     window.__showInput__ = onInputRequest || (() => {});
 
-    // 设置自定义 stdout 和 input
     mainPyodide.runPython(`
 import sys
 import js
@@ -104,7 +96,6 @@ sys.stdout = RealtimeStdout()
 sys.stderr = RealtimeStdout()
 `);
 
-    // 注册异步 input 函数
     mainPyodide.registerJsModule('__input__', {
       request_input: waitForInput
     });
@@ -117,27 +108,24 @@ async def __async_input__(prompt=''):
     return await __input__.request_input(prompt_str)
 `);
 
-    // 预处理代码并运行
     const processedCode = preprocessCode(code);
     await mainPyodide.runPythonAsync(processedCode);
 
-    // 恢复 stdout
     mainPyodide.runPython('sys.stdout = sys.__stdout__; sys.stderr = sys.__stderr__');
     
-    // 清理回调
     delete window.__onPythonOutput__;
     delete window.__showInput__;
+    currentBlockIdRef = null;
 
     return { success: true, output: '', error: null };
   } catch (error) {
     try {
       mainPyodide.runPython('sys.stdout = sys.__stdout__; sys.stderr = sys.__stderr__');
-    } catch (e) {
-      // 忽略
-    }
+    } catch (e) {}
     
     delete window.__onPythonOutput__;
     delete window.__showInput__;
+    currentBlockIdRef = null;
     
     return { success: false, output: '', error: error.message };
   }
@@ -146,12 +134,12 @@ async def __async_input__(prompt=''):
 export const PyodideProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [inputPrompt, setInputPrompt] = useState(null); // 当前输入提示
-  const [inputValue, setInputValue] = useState(''); // 输入值
+  const [inputPrompt, setInputPrompt] = useState(null);
+  const [inputValue, setInputValue] = useState('');
+  const [activeBlockId, setActiveBlockId] = useState(null); // 当前活跃的代码块 ID
   const workerRef = useRef(null);
   const pendingResolveRef = useRef(null);
 
-  // 创建 Worker（用于不含 input 的代码）
   const createWorker = useCallback(() => {
     if (workerRef.current) {
       workerRef.current.terminate();
@@ -192,10 +180,11 @@ export const PyodideProvider = ({ children }) => {
     };
   }, [createWorker]);
 
-  // 显示输入框
-  const handleInputRequest = useCallback((prompt) => {
+  // 显示输入框（带代码块 ID）
+  const handleInputRequest = useCallback((prompt, blockId) => {
     setInputPrompt(prompt);
     setInputValue('');
+    setActiveBlockId(blockId);
   }, []);
 
   // 提交输入
@@ -206,17 +195,16 @@ export const PyodideProvider = ({ children }) => {
     }
     setInputPrompt(null);
     setInputValue('');
+    setActiveBlockId(null);
   }, [inputValue]);
 
   // 运行 Python 代码
-  const runPython = useCallback(async (code, onOutput) => {
+  const runPython = useCallback(async (code, onOutput, blockId) => {
     const hasInput = /\binput\s*\(/.test(code);
     
     if (hasInput) {
-      // 包含 input()，在主线程运行（支持异步输入和实时输出）
-      return await runOnMainThread(code, onOutput, handleInputRequest);
+      return await runOnMainThread(code, onOutput, handleInputRequest, blockId);
     } else {
-      // 不含 input()，在 Worker 中运行
       if (!workerRef.current) {
         return { success: false, output: '', error: 'Python 运行环境未加载' };
       }
@@ -243,9 +231,9 @@ export const PyodideProvider = ({ children }) => {
         pendingResolveRef.current = null;
       }
 
-      // 清理输入状态
       setInputPrompt(null);
       setInputValue('');
+      setActiveBlockId(null);
       if (inputResolveRef) {
         inputResolveRef = null;
       }
@@ -263,7 +251,8 @@ export const PyodideProvider = ({ children }) => {
     inputPrompt,
     inputValue,
     setInputValue,
-    handleInputSubmit
+    handleInputSubmit,
+    activeBlockId
   };
 
   return (

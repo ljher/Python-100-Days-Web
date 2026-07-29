@@ -35,8 +35,12 @@ const extractTextFromChildren = (children) => {
   return String(children);
 };
 
+// 生成唯一 ID
+let blockIdCounter = 0;
+
 // 可交互的代码块组件
 const InteractiveCodeBlock = ({ code, language }) => {
+  const blockIdRef = useRef(`block-${blockIdCounter++}`);
   const { 
     isLoading: pyodideLoading, 
     error: pyodideError, 
@@ -45,7 +49,8 @@ const InteractiveCodeBlock = ({ code, language }) => {
     inputPrompt,
     inputValue,
     setInputValue,
-    handleInputSubmit
+    handleInputSubmit,
+    activeBlockId
   } = usePyodide();
   const [isEditing, setIsEditing] = useState(false);
   const [editCode, setEditCode] = useState(code);
@@ -59,6 +64,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
   const textareaRef = useRef(null);
   const timerRef = useRef(null);
   const inputRef = useRef(null);
+  const blockId = blockIdRef.current;
 
   // 运行代码
   const handleRun = async () => {
@@ -86,7 +92,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
         });
       };
 
-      const result = await runPython(editCode, onOutput);
+      const result = await runPython(editCode, onOutput, blockId);
       
       // 如果有一次性输出（非实时模式），设置输出
       if (result.output && !output) {
@@ -466,8 +472,8 @@ const InteractiveCodeBlock = ({ code, language }) => {
         </div>
       )}
 
-      {/* 输入框区域 */}
-      {inputPrompt !== null && (
+      {/* 输入框区域 - 只在当前活跃的代码块显示 */}
+      {inputPrompt !== null && activeBlockId === blockId && (
         <div style={{
           borderTop: '1px solid #1976d2',
           padding: '12px',
