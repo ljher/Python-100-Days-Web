@@ -5,8 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Python-100-Days 互动学习平台</title>
-    <!-- 加载 Pyodide -->
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+    <!-- Pyodide 在 Web Worker 中加载，不阻塞主线程 -->
   </head>
   <body>
     <div id="root"></div>

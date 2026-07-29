@@ -36,7 +36,7 @@ const extractTextFromChildren = (children) => {
 
 // 可交互的代码块组件
 const InteractiveCodeBlock = ({ code, language }) => {
-  const { isLoading: pyodideLoading, error: pyodideError, runPython, stopPython, loadPyodide } = usePyodide();
+  const { isLoading: pyodideLoading, error: pyodideError, runPython, stopPython } = usePyodide();
   const [isEditing, setIsEditing] = useState(false);
   const [editCode, setEditCode] = useState(code);
   const [output, setOutput] = useState('');
@@ -69,8 +69,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
     }, 100);
 
     try {
-      // 设置超时时间为10秒
-      const result = await runPython(editCode, 10000);
+      const result = await runPython(editCode);
       
       if (result.success) {
         setOutput(result.output || '代码执行完成（无输出）');
@@ -86,7 +85,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
     }
   };
 
-  // 停止运行
+  // 停止运行 - 终止 Worker 并重新创建
   const handleStop = () => {
     if (stopPython) {
       stopPython();
@@ -94,7 +93,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
     setIsRunning(false);
     clearInterval(timerRef.current);
     setShowTimeoutWarning(false);
-    setOutput(prev => prev + '\n\n[用户停止执行]');
+    setOutput('已停止执行');
   };
 
   // 复制代码
