@@ -37,7 +37,16 @@ const extractTextFromChildren = (children) => {
 
 // 可交互的代码块组件
 const InteractiveCodeBlock = ({ code, language }) => {
-  const { isLoading: pyodideLoading, error: pyodideError, runPython, stopPython } = usePyodide();
+  const { 
+    isLoading: pyodideLoading, 
+    error: pyodideError, 
+    runPython, 
+    stopPython,
+    inputPrompt,
+    inputValue,
+    setInputValue,
+    handleInputSubmit
+  } = usePyodide();
   const [isEditing, setIsEditing] = useState(false);
   const [editCode, setEditCode] = useState(code);
   const [output, setOutput] = useState('');
@@ -49,6 +58,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const textareaRef = useRef(null);
   const timerRef = useRef(null);
+  const inputRef = useRef(null);
 
   // 运行代码
   const handleRun = async () => {
@@ -453,6 +463,60 @@ const InteractiveCodeBlock = ({ code, language }) => {
           }}>
             {output}
           </pre>
+        </div>
+      )}
+
+      {/* 输入框区域 */}
+      {inputPrompt !== null && (
+        <div style={{
+          borderTop: '1px solid #1976d2',
+          padding: '12px',
+          backgroundColor: '#e3f2fd',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span style={{
+            fontSize: '13px',
+            color: '#1976d2',
+            fontWeight: '500'
+          }}>
+            {inputPrompt}
+          </span>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleInputSubmit();
+              }
+            }}
+            style={{
+              flex: 1,
+              padding: '6px 10px',
+              fontSize: '13px',
+              border: '1px solid #1976d2',
+              borderRadius: '4px',
+              outline: 'none'
+            }}
+            autoFocus
+          />
+          <button
+            onClick={handleInputSubmit}
+            style={{
+              padding: '6px 12px',
+              fontSize: '13px',
+              backgroundColor: '#1976d2',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            确定
+          </button>
         </div>
       )}
 
