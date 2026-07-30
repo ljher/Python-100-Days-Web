@@ -540,15 +540,6 @@ const InteractiveCodeBlock = ({ code, language }) => {
           }}
           dangerouslySetInnerHTML={{ __html: parseAnsiColors(output) }}
           />
-          {/* 调试：显示原始输出（临时） */}
-          {process.env.NODE_ENV === 'development' && output && (
-            <details style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
-              <summary>调试：原始输出</summary>
-              <pre style={{ fontSize: '10px', overflow: 'auto', maxHeight: '100px' }}>
-                {JSON.stringify(output)}
-              </pre>
-            </details>
-          )}
         </div>
       )}
 
