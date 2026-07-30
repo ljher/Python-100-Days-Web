@@ -59,17 +59,25 @@ const parseAnsiColors = (text) => {
     '97': '#ffffff', // 亮白色
   };
   
-  // ESC 字符的多种表示方式
-  const ESC = String.fromCharCode(27); // 0x1b
+  // ESC 字符（ASCII 27）
+  const ESC = String.fromCharCode(27);
+  
+  // 调试：检查输入中是否包含 ESC 字符
+  const hasEscChar = text.includes(ESC);
+  const hasEscString = text.includes('\\u001b') || text.includes('\\x1b') || text.includes('\\033');
+  console.log('ANSI 调试:', { 
+    hasEscChar, 
+    hasEscString, 
+    textLength: text.length,
+    firstChars: text.substring(0, 50)
+  });
   
   // 先将所有可能的 ESC 表示统一为实际的 ESC 字符
   let processed = text
     .replace(/\\u001b/g, ESC)
-    .replace(/\\x1b/g, ESC)
-    .replace(/\\x1B/g, ESC)
+    .replace(/\\x1b/gi, ESC)
     .replace(/\\033/g, ESC)
-    .replace(/\\e/g, ESC)
-    .replace(/\\E/g, ESC);
+    .replace(/\\e/gi, ESC);
   
   // 转义 HTML 特殊字符
   let html = processed
@@ -78,10 +86,12 @@ const parseAnsiColors = (text) => {
     .replace(/>/g, '&gt;');
   
   // 解析 ANSI 转义序列：ESC[...m
-  // 使用 ESC 字符构建正则
-  const escRegex = new RegExp(ESC.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\[([0-9;]*)m', 'g');
+  // 直接使用 ESC 字符匹配
+  const ansiRegex = new RegExp(`\\x1b\\[([0-9;]*)m`, 'g');
   
-  html = html.replace(escRegex, (match, codes) => {
+  html = html.replace(ansiRegex, (match, codes) => {
+    console.log('找到 ANSI 代码:', { match: match.substring(0, 10), codes });
+    
     if (!codes || codes === '0' || codes === '') {
       return '</span>'; // 重置
     }
@@ -544,6 +554,13 @@ const InteractiveCodeBlock = ({ code, language }) => {
           }}
           dangerouslySetInnerHTML={{ __html: parseAnsiColors(output) }}
           />
+          {/* 调试：原始输出 */}
+          <details style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+            <summary>调试：原始输出</summary>
+            <pre style={{ fontSize: '10px', overflow: 'auto', maxHeight: '100px', backgroundColor: '#fff', padding: '4px' }}>
+              {JSON.stringify(output)}
+            </pre>
+          </details>
         </div>
       )}
 
