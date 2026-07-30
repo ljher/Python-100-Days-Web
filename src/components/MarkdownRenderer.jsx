@@ -67,14 +67,15 @@ const parseAnsiColors = (text) => {
   
   // 解析 ANSI 转义序列
   // 匹配多种格式：
-  // 1. \x1b[...m (ESC 字符)
-  // 2. \033[...m (八进制 ESC)
-  // 3. \\033[...m (转义的八进制)
-  // 4. \\x1b[...m (转义的十六进制)
-  // 5. \\e[...m (转义的 \e)
-  // 6. \e[...m (\e 格式)
-  // 7. ESC[...m (文字 ESC)
-  const ansiRegex = /(?:\x1b|\x1B|\033|\\033|\\x1b|\\x1B|\\e|\\E|ESC)\[([0-9;]*)m/g;
+  // 1. \u001b[...m (Unicode ESC)
+  // 2. \x1b[...m (十六进制 ESC)
+  // 3. \033[...m (八进制 ESC)
+  // 4. \\u001b[...m (转义的 Unicode)
+  // 5. \\x1b[...m (转义的十六进制)
+  // 6. \\033[...m (转义的八进制)
+  // 7. \\e[...m (转义的 \e)
+  // 8. ESC[...m (文字 ESC)
+  const ansiRegex = /(?:\u001b|\x1b|\x1B|\033|\\u001b|\\033|\\x1b|\\x1B|\\e|\\E|ESC)\[([0-9;]*)m/g;
   
   html = html.replace(ansiRegex, (match, codes) => {
     if (!codes || codes === '0' || codes === '') {
