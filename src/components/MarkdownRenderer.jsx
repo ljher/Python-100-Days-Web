@@ -35,6 +35,64 @@ const extractTextFromChildren = (children) => {
   return String(children);
 };
 
+// ANSI 颜色代码解析器
+const parseAnsiColors = (text) => {
+  if (!text) return '';
+  
+  // ANSI 颜色映射
+  const ansiColors = {
+    '30': '#000000', // 黑色
+    '31': '#ff0000', // 红色
+    '32': '#00ff00', // 绿色
+    '33': '#ffff00', // 黄色
+    '34': '#0000ff', // 蓝色
+    '35': '#ff00ff', // 紫色
+    '36': '#00ffff', // 青色
+    '37': '#ffffff', // 白色
+    '90': '#808080', // 亮黑色（灰色）
+    '91': '#ff5555', // 亮红色
+    '92': '#55ff55', // 亮绿色
+    '93': '#ffff55', // 亮黄色
+    '94': '#5555ff', // 亮蓝色
+    '95': '#ff55ff', // 亮紫色
+    '96': '#55ffff', // 亮青色
+    '97': '#ffffff', // 亮白色
+  };
+  
+  // 转义 HTML 特殊字符
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  
+  // 解析 ANSI 转义序列
+  // 匹配 \033[...m 或 \x1b[...m 或 ESC[...m
+  html = html.replace(/\x1b\[([0-9;]*)m/g, (match, codes) => {
+    if (!codes || codes === '0') {
+      return '</span>'; // 重置
+    }
+    
+    const codeList = codes.split(';');
+    const colorCode = codeList[codeList.length - 1];
+    const color = ansiColors[colorCode];
+    
+    if (color) {
+      return `<span style="color: ${color}">`;
+    }
+    
+    return ''; // 未知代码，忽略
+  });
+  
+  // 确保所有 span 都闭合
+  const openCount = (html.match(/<span/g) || []).length;
+  const closeCount = (html.match(/<\/span>/g) || []).length;
+  for (let i = closeCount; i < openCount; i++) {
+    html += '</span>';
+  }
+  
+  return html;
+};
+
 // 生成唯一 ID
 let blockIdCounter = 0;
 
@@ -467,9 +525,9 @@ const InteractiveCodeBlock = ({ code, language }) => {
             overflowX: 'auto',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-all'
-          }}>
-            {output}
-          </pre>
+          }}
+          dangerouslySetInnerHTML={{ __html: parseAnsiColors(output) }}
+          />
         </div>
       )}
 
