@@ -59,25 +59,29 @@ const parseAnsiColors = (text) => {
     '97': '#ffffff', // 亮白色
   };
   
+  // ESC 字符的多种表示方式
+  const ESC = String.fromCharCode(27); // 0x1b
+  
+  // 先将所有可能的 ESC 表示统一为实际的 ESC 字符
+  let processed = text
+    .replace(/\\u001b/g, ESC)
+    .replace(/\\x1b/g, ESC)
+    .replace(/\\x1B/g, ESC)
+    .replace(/\\033/g, ESC)
+    .replace(/\\e/g, ESC)
+    .replace(/\\E/g, ESC);
+  
   // 转义 HTML 特殊字符
-  let html = text
+  let html = processed
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
   
-  // 解析 ANSI 转义序列
-  // 匹配多种格式：
-  // 1. \u001b[...m (Unicode ESC)
-  // 2. \x1b[...m (十六进制 ESC)
-  // 3. \033[...m (八进制 ESC)
-  // 4. \\u001b[...m (转义的 Unicode)
-  // 5. \\x1b[...m (转义的十六进制)
-  // 6. \\033[...m (转义的八进制)
-  // 7. \\e[...m (转义的 \e)
-  // 8. ESC[...m (文字 ESC)
-  const ansiRegex = /(?:\u001b|\x1b|\x1B|\033|\\u001b|\\033|\\x1b|\\x1B|\\e|\\E|ESC)\[([0-9;]*)m/g;
+  // 解析 ANSI 转义序列：ESC[...m
+  // 使用 ESC 字符构建正则
+  const escRegex = new RegExp(ESC.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\[([0-9;]*)m', 'g');
   
-  html = html.replace(ansiRegex, (match, codes) => {
+  html = html.replace(escRegex, (match, codes) => {
     if (!codes || codes === '0' || codes === '') {
       return '</span>'; // 重置
     }
