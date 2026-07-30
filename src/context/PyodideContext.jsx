@@ -136,39 +136,49 @@ export const PyodideProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [inputPrompt, setInputPrompt] = useState(null);
   const [inputValue, setInputValue] = useState('');
-  const [activeBlockId, setActiveBlockId] = useState(null); // 当前活跃的代码块 ID
+  const [activeBlockId, setActiveBlockId] = useState(null);
   const workerRef = useRef(null);
   const pendingResolveRef = useRef(null);
 
+  // 错误边界
+  if (error) {
+    console.error('PyodideProvider 错误:', error);
+  }
+
   const createWorker = useCallback(() => {
-    if (workerRef.current) {
-      workerRef.current.terminate();
-    }
-
-    // 使用 import.meta.env.BASE_URL 获取正确的基础路径
-    const workerUrl = new URL('/pyodide.worker.js', import.meta.env.BASE_URL).href;
-    const worker = new Worker(workerUrl);
-    workerRef.current = worker;
-
-    worker.onmessage = (e) => {
-      const { type, success, output: workerOutput, error: workerError } = e.data;
-
-      if (type === 'ready') {
-        setIsLoading(false);
-        console.log('Pyodide Worker 加载成功');
-      } else if (type === 'result') {
-        if (pendingResolveRef.current) {
-          pendingResolveRef.current({ success, output: workerOutput, error: workerError });
-          pendingResolveRef.current = null;
-        }
+    try {
+      if (workerRef.current) {
+        workerRef.current.terminate();
       }
-    };
 
-    worker.onerror = (err) => {
-      console.error('Worker 错误:', err);
-      setError(err.message || 'Worker 加载失败');
+      // Worker 路径 - 使用相对路径
+      const worker = new Worker('/pyodide.worker.js');
+      workerRef.current = worker;
+
+      worker.onmessage = (e) => {
+        const { type, success, output: workerOutput, error: workerError } = e.data;
+
+        if (type === 'ready') {
+          setIsLoading(false);
+          console.log('Pyodide Worker 加载成功');
+        } else if (type === 'result') {
+          if (pendingResolveRef.current) {
+            pendingResolveRef.current({ success, output: workerOutput, error: workerError });
+            pendingResolveRef.current = null;
+          }
+        }
+      };
+
+      worker.onerror = (err) => {
+        console.error('Worker 错误:', err);
+        setError(err.message || 'Worker 加载失败');
+        setIsLoading(false);
+      };
+    } catch (err) {
+      console.error('创建 Worker 失败:', err);
+      setError('创建 Worker 失败: ' + err.message);
       setIsLoading(false);
-    };
+    }
   }, []);
 
   useEffect(() => {

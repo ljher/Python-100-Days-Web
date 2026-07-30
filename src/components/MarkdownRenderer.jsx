@@ -41,6 +41,7 @@ let blockIdCounter = 0;
 // 可交互的代码块组件
 const InteractiveCodeBlock = ({ code, language }) => {
   const blockIdRef = useRef(`block-${blockIdCounter++}`);
+  const pyodide = usePyodide();
   const { 
     isLoading: pyodideLoading, 
     error: pyodideError, 
@@ -51,7 +52,7 @@ const InteractiveCodeBlock = ({ code, language }) => {
     setInputValue,
     handleInputSubmit,
     activeBlockId
-  } = usePyodide();
+  } = pyodide || {};
   const [isEditing, setIsEditing] = useState(false);
   const [editCode, setEditCode] = useState(code);
   const [output, setOutput] = useState('');
