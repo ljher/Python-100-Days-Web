@@ -66,8 +66,15 @@ const parseAnsiColors = (text) => {
     .replace(/>/g, '&gt;');
   
   // 解析 ANSI 转义序列
-  // 匹配多种格式：\x1b[...m, \033[...m, ESC[...m, \e[...m
-  const ansiRegex = /(?:\x1b|\033|\\033|\\e|ESC)\[([0-9;]*)m/g;
+  // 匹配多种格式：
+  // 1. \x1b[...m (ESC 字符)
+  // 2. \033[...m (八进制 ESC)
+  // 3. \\033[...m (转义的八进制)
+  // 4. \\x1b[...m (转义的十六进制)
+  // 5. \\e[...m (转义的 \e)
+  // 6. \e[...m (\e 格式)
+  // 7. ESC[...m (文字 ESC)
+  const ansiRegex = /(?:\x1b|\x1B|\033|\\033|\\x1b|\\x1B|\\e|\\E|ESC)\[([0-9;]*)m/g;
   
   html = html.replace(ansiRegex, (match, codes) => {
     if (!codes || codes === '0' || codes === '') {
@@ -532,6 +539,15 @@ const InteractiveCodeBlock = ({ code, language }) => {
           }}
           dangerouslySetInnerHTML={{ __html: parseAnsiColors(output) }}
           />
+          {/* 调试：显示原始输出（临时） */}
+          {process.env.NODE_ENV === 'development' && output && (
+            <details style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+              <summary>调试：原始输出</summary>
+              <pre style={{ fontSize: '10px', overflow: 'auto', maxHeight: '100px' }}>
+                {JSON.stringify(output)}
+              </pre>
+            </details>
+          )}
         </div>
       )}
 
