@@ -66,21 +66,25 @@ const parseAnsiColors = (text) => {
     .replace(/>/g, '&gt;');
   
   // 解析 ANSI 转义序列
-  // 匹配 \033[...m 或 \x1b[...m 或 ESC[...m
-  html = html.replace(/\x1b\[([0-9;]*)m/g, (match, codes) => {
-    if (!codes || codes === '0') {
+  // 匹配多种格式：\x1b[...m, \033[...m, ESC[...m, \e[...m
+  const ansiRegex = /(?:\x1b|\033|\\033|\\e|ESC)\[([0-9;]*)m/g;
+  
+  html = html.replace(ansiRegex, (match, codes) => {
+    if (!codes || codes === '0' || codes === '') {
       return '</span>'; // 重置
     }
     
     const codeList = codes.split(';');
-    const colorCode = codeList[codeList.length - 1];
-    const color = ansiColors[colorCode];
+    let result = '';
     
-    if (color) {
-      return `<span style="color: ${color}">`;
+    for (const code of codeList) {
+      const color = ansiColors[code];
+      if (color) {
+        result += `<span style="color: ${color}">`;
+      }
     }
     
-    return ''; // 未知代码，忽略
+    return result || '';
   });
   
   // 确保所有 span 都闭合
