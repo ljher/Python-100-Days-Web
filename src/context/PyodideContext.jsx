@@ -145,7 +145,9 @@ export const PyodideProvider = ({ children }) => {
       workerRef.current.terminate();
     }
 
-    const worker = new Worker('/pyodide.worker.js');
+    // 使用 import.meta.env.BASE_URL 获取正确的基础路径
+    const workerUrl = new URL('/pyodide.worker.js', import.meta.env.BASE_URL).href;
+    const worker = new Worker(workerUrl);
     workerRef.current = worker;
 
     worker.onmessage = (e) => {
