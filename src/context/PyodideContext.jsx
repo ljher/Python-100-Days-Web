@@ -96,16 +96,26 @@ sys.stdout = RealtimeStdout()
 sys.stderr = RealtimeStdout()
 `);
 
+    // 导入 micropip 用于安装包
+    await mainPyodide.loadPackage('micropip');
+
     mainPyodide.registerJsModule('__input__', {
       request_input: waitForInput
     });
 
     mainPyodide.runPython(`
 import __input__
+import micropip
 
 async def __async_input__(prompt=''):
     prompt_str = str(prompt) if prompt else ''
     return await __input__.request_input(prompt_str)
+
+# 提供 pip_install 函数供用户使用
+async def pip_install(package_name):
+    """安装 Python 包"""
+    await micropip.install(package_name)
+    print(f'已安装: {package_name}')
 `);
 
     const processedCode = preprocessCode(code);

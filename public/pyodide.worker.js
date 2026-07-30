@@ -15,6 +15,21 @@ async function loadPyodideEngine() {
       indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/'
     });
     
+    // 加载 micropip 用于安装包
+    await pyodideInstance.loadPackage('micropip');
+    
+    // 提供 pip_install 函数
+    pyodideInstance.runPython(`
+import micropip
+
+def pip_install(package_name):
+    """安装 Python 包（同步版本）"""
+    import asyncio
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(micropip.install(package_name))
+    print(f'已安装: {package_name}')
+`);
+    
     pyodideReady = true;
     self.postMessage({ type: 'ready' });
   } catch (error) {
