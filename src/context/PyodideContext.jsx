@@ -105,9 +105,10 @@ sys.stderr = RealtimeStdout()
       request_input: waitForInput
     });
 
-    mainPyodide.runPython(`
-import __input__
+    // 预安装常用包
+    await mainPyodide.runPythonAsync(`
 import micropip
+import __input__
 
 async def __async_input__(prompt=''):
     prompt_str = str(prompt) if prompt else ''
@@ -118,6 +119,10 @@ async def pip_install(package_name):
     """安装 Python 包"""
     await micropip.install(package_name)
     print(f'已安装: {package_name}')
+
+# 预安装 rich 包
+await micropip.install('rich')
+print('环境初始化完成，已预安装: rich')
 `);
 
     const processedCode = preprocessCode(code);

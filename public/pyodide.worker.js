@@ -18,8 +18,8 @@ async function loadPyodideEngine() {
     // 加载 micropip 用于安装包
     await pyodideInstance.loadPackage('micropip');
     
-    // 提供 pip_install 函数
-    pyodideInstance.runPython(`
+    // 预安装常用包
+    await pyodideInstance.runPythonAsync(`
 import micropip
 
 def pip_install(package_name):
@@ -28,6 +28,10 @@ def pip_install(package_name):
     loop = asyncio.new_event_loop()
     loop.run_until_complete(micropip.install(package_name))
     print(f'已安装: {package_name}')
+
+# 预安装 rich 包
+await micropip.install('rich')
+print('环境初始化完成，已预安装: rich')
 `);
     
     pyodideReady = true;
