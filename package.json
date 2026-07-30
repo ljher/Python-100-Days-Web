@@ -1,7 +1,7 @@
 {
   "name": "python-learning-platform",
   "private": true,
-  "version": "1.2.2",
+  "version": "1.2.3",
   "type": "module",
   "description": "基于 Python-100-Days 课程的在线互动学习平台",
   "author": "ljher",
