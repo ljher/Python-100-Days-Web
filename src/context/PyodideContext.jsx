@@ -49,7 +49,9 @@ async function loadMainPyodide() {
 function preprocessCode(code) {
   const lines = code.split('\n');
   const processedLines = lines.map(line => {
-    return line.replace(/\binput\s*\(/g, 'await __async_input__(');
+    return line
+      .replace(/\binput\s*\(/g, 'await __async_input__(')
+      .replace(/\bpip_install\s*\(/g, 'await pip_install(');
   });
   const indentedCode = processedLines.map(line => '    ' + line).join('\n');
   return `\n${indentedCode}\n`;
